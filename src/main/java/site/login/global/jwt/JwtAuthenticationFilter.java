@@ -19,7 +19,6 @@ import site.login.domain.user.repository.UserRepository;
 import java.io.IOException;
 import java.util.List;
 
-//JWT인증필터
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -32,6 +31,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, 
                                     HttpServletResponse response, 
                                     FilterChain filterChain) throws ServletException, IOException {
+        
+        // OAuth2 관련 경로는 JWT 검증 제외
+        String requestURI = request.getRequestURI();
+        if (shouldSkipFilter(requestURI)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
         
         try {
             // 1. 헤더에서 JWT 토큰 추출
@@ -73,6 +79,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         
         // 8. 다음 필터로 진행
         filterChain.doFilter(request, response);
+    }
+
+    /**
+     * JWT 필터를 건너뛸 경로 확인
+     */
+    private boolean shouldSkipFilter(String requestURI) {
+        return requestURI.startsWith("/oauth2/") ||
+               requestURI.startsWith("/login/oauth2/") ||
+               requestURI.startsWith("/api/auth/") ||
+               requestURI.startsWith("/api/debug/") ||
+               requestURI.equals("/") ||
+               requestURI.equals("/error") ||
+               requestURI.equals("/favicon.ico");
     }
 
     /**

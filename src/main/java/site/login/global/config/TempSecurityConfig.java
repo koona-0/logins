@@ -10,8 +10,11 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import site.login.domain.oauth.service.CustomOAuth2UserService;
 import site.login.global.jwt.JwtAuthenticationEntryPoint;
 import site.login.global.jwt.JwtAuthenticationFilter;
+import site.login.global.oauth2.OAuth2AuthenticationFailureHandler;
+import site.login.global.oauth2.OAuth2AuthenticationSuccessHandler;
 
 @Configuration
 @EnableWebSecurity
@@ -20,6 +23,9 @@ public class TempSecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
+    private final CustomOAuth2UserService customOAuth2UserService;
+    private final OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
+    private final OAuth2AuthenticationFailureHandler oAuth2AuthenticationFailureHandler;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -38,17 +44,27 @@ public class TempSecurityConfig {
             // URL별 접근 권한 설정
             .authorizeHttpRequests(auth -> auth
                 // 인증 없이 접근 가능한 URL
-                .requestMatchers("/api/auth/**").permitAll()  // 회원가입, 로그인
-                .requestMatchers("/h2-console/**").permitAll() // H2 콘솔
-                .requestMatchers("/").permitAll()             // 메인 페이지
+                .requestMatchers("/api/auth/**").permitAll()              // 일반 로그인/회원가입
+                .requestMatchers("/oauth2/**").permitAll()                // OAuth2 관련 모든 경로
+                .requestMatchers("/login/oauth2/**").permitAll()          // OAuth2 콜백 경로
+                .requestMatchers("/oauth2/authorization/**").permitAll()   // OAuth2 인증 시작 경로
+                .requestMatchers("/").permitAll()                         // 메인 페이지
+                .requestMatchers("/error").permitAll()                    // 에러 페이지
+                .requestMatchers("/favicon.ico").permitAll()              // 파비콘
+                .requestMatchers("/api/debug/**").permitAll()             // 디버그 API (개발용)
                 
                 // 나머지는 인증 필요
                 .anyRequest().authenticated()
             )
             
-            // H2 콘솔을 위한 설정 (개발용)
-            .headers(headers -> headers
-                .frameOptions().sameOrigin())
+            // OAuth2 로그인 설정
+            .oauth2Login(oauth2 -> oauth2
+                .userInfoEndpoint(userInfo -> userInfo
+                    .userService(customOAuth2UserService) // 커스텀 OAuth2 사용자 서비스
+                )
+                .successHandler(oAuth2AuthenticationSuccessHandler) // 성공 핸들러
+                .failureHandler(oAuth2AuthenticationFailureHandler) // 실패 핸들러
+            )
             
             // JWT 필터 추가
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
